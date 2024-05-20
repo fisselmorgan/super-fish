@@ -1,0 +1,823 @@
+---
+title: "TransferMarket"
+author: "Siddiq Khan, Morgan Fissel, Raunav Sharma"
+date: "2023-11-30"
+output: html_document
+---
+
+```{r}
+library(ggplot2)
+library(scales)
+library(dplyr)
+library(mgcv)
+library(maps)
+library(mapdata)
+```
+
+
+
+```{r}
+
+transfer_data <- read.csv("merged_cleaned_data.csv")
+head(transfer_data)
+
+
+```
+
+
+```{r}
+
+str(transfer_data)
+```
+
+```{r}
+
+unique_positions <- unique(transfer_data$short_pos)
+print(unique_positions)
+
+```
+
+
+
+```{r}
+
+transfer_data <- transfer_data %>%
+  mutate(position_category = case_when(
+    short_pos %in% c("CM", "LM", "AM", "DM", "RM") ~ "midfield",
+    short_pos %in% c("RB", "LB", "CB") ~ "defence",
+    short_pos %in% c("SS", "LW", "RW", "CF") ~ "attack",
+    TRUE ~ short_pos  
+  ))
+
+head(transfer_data)
+
+```
+
+```{r}
+
+unique_positions <- unique(transfer_data$position_category)
+print(unique_positions)
+
+```
+
+
+```{r}
+filtered_data <- transfer_data[transfer_data$fee > 0, ]
+```
+
+
+
+```{r}
+transfer_data_2021 <- transfer_data[transfer_data$season == "2021" & transfer_data$fee > 0, ]
+
+ggplot(transfer_data_2021, aes(x = market_value, y = fee, color = league)) +
+  geom_point() +
+  labs(title = "Relationship between Market Value and Transfer Fee (All Leagues - 2021)",
+       x = "Market Value",
+       y = "Transfer Fee",
+       color = "League")
+```
+```{r}
+ggplot(transfer_data, aes(x = age, fill = ..count..)) +
+  geom_histogram(binwidth = 1, color = "black", alpha = 0.7) +
+  scale_fill_gradient("Count", low = "yellow", high = "purple") +
+  labs(title = "Transfer Distribution by Age from 2011 to 2020",
+       x = "Age",
+       y = "Count") +
+  theme_minimal()
+
+ggplot(transfer_data, aes(x = age, y = fee, color = league)) +
+  geom_point(alpha = 0.7) +
+  #scale_color_manual(values = league_colors, name = "League") +
+  labs(title = "Transfer Fees versus Age",
+       x = "Age",
+       y = "Transfer Fee",
+       color = "League") +
+  theme_minimal()
+
+```
+
+
+```{r}
+# x_limits =c(0,12500000)
+# y_limits =c(0,15000000)
+## faceted by league
+
+ggplot(filtered_data, aes(x = market_value, y = fee)) +
+  geom_point() +
+  labs(title = "Relationship between Market Value and Transfer Fee (All Leagues)",
+       x = "Market Value",
+       y = "Transfer Fee") + facet_wrap(~ league)
+
+ggplot(filtered_data, aes(x = log(market_value), y = log(fee))) +
+  geom_point() +
+  labs(title = "Relationship between log(Market Value) and log(Transfer Fee) (All Leagues)",
+       x = "Market Value",
+       y = "Transfer Fee") +
+  facet_wrap(~ league, scales = "free")  
+
+```
+
+```{r}
+ggplot(filtered_data, aes(x = market_value, y = fee, color = position_category)) +
+  geom_point(aes(group = position_category), size = 1) +
+  #geom_point(size = 1) +
+  labs(
+    title = "Scatter Plot - Market Value and Position on Transfer Fees",
+    x = "Market Value",
+    y = "Transfer Fee",
+    color = "Position"
+  ) + 
+  facet_wrap(~position_category)
+
+##Log Scale
+ggplot(filtered_data, aes(x = log(market_value), y = log(fee), color = position_category)) +
+  geom_point(aes(group = position_category), size = 1) +
+  #geom_point(size = 1) +
+  labs(
+    title = "Scatter Plot - log(Market Value) and Position on log(Transfer Fees)",
+    x = "Market Value",
+    y = "Transfer Fee",
+    color = "Position"
+  ) + 
+  facet_wrap(~position_category)
+```
+
+
+
+
+
+
+```{r}
+# Filter the data for the year 2021 and exclude players with a fee of 0
+transfer_data_2021 <- transfer_data[transfer_data$season == "2021" & transfer_data$fee > 0, ]
+
+# Scatter plot with color-coded points for each league in the year 2021
+ggplot(transfer_data, aes(x = market_value, y = fee, color = league)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +  # Add a linear regression line
+  labs(title = "Relationship between Market Value and Transfer Fee (All Leagues)",
+       x = "Market Value",
+       y = "Transfer Fee",
+       color = "League") + 
+  facet_grid(league ~ .)
+
+```
+
+```{r}
+# Create a new variable for year categories
+filtered_data$year_category <- cut(filtered_data$season, breaks = c(2011, 2014, 2018, 2021), labels = c("2011-2014", "2015-2018", "2019-2021"))
+
+# Filter out rows with NA in year_category
+filtered_data <- filtered_data[!is.na(filtered_data$year_category), ]
+
+# Visualize the scatter plot with categorized years
+ggplot(filtered_data, aes(x = market_value, y = fee, color = league)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue", formula = y ~ x) +
+  labs(title = "Market Value vs Transfer Fees - Categorized Years",
+       x = "Market Value",
+       y = "Transfer Fee",
+       color = "League") +
+  facet_grid(league ~ year_category)
+
+```
+
+
+
+
+
+```{r}
+# Filter the data for the year 2021 and exclude players with a fee of 0
+transfer_data_2021 <- transfer_data[transfer_data$season == "2021" & transfer_data$fee > 0, ]
+
+# Scatter plot with color-coded points for each league in the year 2021
+ggplot(transfer_data_2021, aes(x = market_value, y = fee, color = league)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +  # Add a linear regression line
+  labs(title = "Relationship between Market Value and Transfer Fee (All League) 2021",
+       x = "Market Value",
+       y = "Transfer Fee",
+       color = "League") + 
+  facet_grid(league ~ .)
+
+```
+
+
+
+```{r}
+transfer_data_2021 <- transfer_data[transfer_data$season == "2021" & transfer_data$fee > 0, ]
+
+# Define unique colors for each league
+league_colors <- c("Premier League" = "red", "Laliga" = "blue", "1 Bundesliga" = "green", "Serie A" = "purple", "Ligue 1" = "orange")
+
+# Scatter plot with color-coded points and separate trend lines for each league
+ggplot(transfer_data_2021, aes(x = market_value, y = fee, color = league)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, aes(group = league, color = league)) +  # Separate trend lines for each league with different colors
+  scale_color_manual(values = league_colors, name = "League") +  # Set colors according to league
+  labs(title = "Relationship between Market Value and Transfer Fee (All Leagues - 2021)",
+       x = "Market Value",
+       y = "Transfer Fee",
+       color = "League")
+```
+
+```{r}
+
+
+create_scatter_plot <- function(data, title) {
+  ggplot(data, aes(x = market_value, y = fee, color = league)) +
+    geom_point() +
+    geom_smooth(method = "lm", se = FALSE, aes(group = league, color = league)) +
+    scale_color_manual(values = league_colors, name = "League") +
+    labs(title = title,
+         x = "Market Value",
+         y = "Transfer Fee",
+         color = "League")
+}
+
+transfer_data_2021 <- transfer_data[transfer_data$season == "2021" & transfer_data$fee > 0, ]
+plot_2021 <- create_scatter_plot(transfer_data_2021, "Relationship between Market Value and Transfer Fee (All Leagues - 2021)")
+
+transfer_data_2016 <- transfer_data[transfer_data$season == "2016" & transfer_data$fee > 0, ]
+plot_2016 <- create_scatter_plot(transfer_data_2016, "Relationship between Market Value and Transfer Fee (All Leagues - 2016)")
+
+transfer_data_2011 <- transfer_data[transfer_data$season == "2011" & transfer_data$fee > 0, ]
+plot_2011 <- create_scatter_plot(transfer_data_2011, "Relationship between Market Value and Transfer Fee (All Leagues - 2011)")
+
+par(mfrow = c(1, 3))
+
+plot_2021
+plot_2016
+plot_2011
+
+
+```
+
+
+```{r}
+
+# Calculate the correlation coefficient
+correlation_coefficient <- cor(filtered_data$market_value, filtered_data$fee)
+
+# Print the correlation coefficient
+cat("Correlation Coefficient:", correlation_coefficient, "\n")
+```
+
+
+
+Using filtered_data:
+```{r}
+model <- lm(fee ~ market_value + league, data = filtered_data)
+
+# Plot
+ggplot(filtered_data, aes(x = market_value, y = fee, color = league)) +
+  geom_point() +
+  geom_abline(intercept = coef(model)[1], slope = coef(model)[2], color = "blue") +
+  labs(title = "Relationship between Market Value and Transfer Fee (All League)",
+       x = "Market Value",
+       y = "Transfer Fee",
+       color = "League") + 
+  facet_grid(league ~ .)
+```
+
+
+```{r}
+model2 <- lm(fee ~ market_value + short_pos, data = filtered_data)
+
+# Plot
+ggplot(filtered_data, aes(x = market_value, y = fee, color = position_category)) +
+  geom_point() +
+  geom_abline(intercept = coef(model)[1], slope = coef(model)[2], color = "blue") +
+  labs(title = "Relationship between Market Value and Transfer Fee (All League)",
+       x = "Market Value",
+       y = "Transfer Fee",
+       color = "League") + 
+  facet_grid(league ~ .)
+```
+
+
+
+
+
+```{r}
+model1 <- lm(fee ~ market_value + short_pos + league + season, data = filtered_data)
+
+ggplot(filtered_data, aes(x = market_value, y = fee, color = league)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue", formula = y ~ x) +  # Add a linear regression line
+  labs(title = "Relationship between Market Value and Transfer Fee (Model)",
+       x = "Market Value",
+       y = "Transfer Fee",
+       color = "League") +
+  facet_grid(league ~ .)
+
+```
+
+############################################################
+MODEL WE CHOSE 
+
+Linear Regression with Age Categories
+```{r}
+
+# Create age categories
+filtered_data$age_category <- cut(filtered_data$age, breaks = c(18, 21, 25, 30, 35, 40, 45, 50, 100),
+                                   labels = c("18-21", "22-25", "26-30", "31-35", "36-40", "41-45", "46-50", "50+"))
+
+# Fit a linear regression model with age categories
+model_age_cat <- lm(fee ~ market_value + short_pos + league + season + as.factor(age_category), data = filtered_data)
+
+# Visualize the relationship
+ggplot(filtered_data, aes(x = market_value, y = fee, color = league)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue", formula = y ~ x) +
+  labs(title = "Relationship between Market Value and Transfer Fee (Model with Age Categories)",
+       x = "Market Value",
+       y = "Transfer Fee",
+       color = "League") + 
+  facet_grid(league ~ .)
+
+
+```
+
+ANALYSIS OF CHOSEN MODEL 
+```{r}
+library(car)
+vif(model_age_cat)
+
+```
+
+
+```{r}
+# Add predictions and actual values to the dataset
+filtered_data$predictions_age_cat <- predict(model_age_cat, newdata = filtered_data)
+filtered_data$actual_values <- filtered_data$fee
+
+# Visualize predictions vs. actual values
+ggplot(filtered_data, aes(x = actual_values, y = predictions_age_cat, color = league)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "red") +
+  labs(title = "Predictions vs. Actual Transfer Fees (Model with Age Categories)",
+       x = "Actual Transfer Fee",
+       y = "Predicted Transfer Fee",
+       color = "League")
+
+
+```
+
+
+
+```{r}
+
+residuals_age_cat <- residuals(model_age_cat)
+
+# Assuming log transformation is needed for market_value
+filtered_data$log_market_value <- log(filtered_data$market_value)
+
+# Ensure both data frames have the same number of rows
+min_rows <- min(nrow(filtered_data), length(residuals_age_cat))
+filtered_data <- head(filtered_data, min_rows)
+residuals_data <- data.frame(
+  log_market_value = filtered_data$log_market_value,
+  residuals = head(residuals_age_cat, min_rows),
+  league = filtered_data$league
+)
+
+# Visualize residuals
+ggplot(residuals_data, aes(x = log_market_value, y = residuals, color = league)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Residuals vs. Log-transformed Market Value (Model with Age Categories)",
+       x = "Log-transformed Market Value",
+       y = "Residuals",
+       color = "League") +
+  facet_grid(league ~ .)
+
+
+
+
+```
+
+
+
+
+
+
+
+```{r}
+# Predict transfer fees
+predictions_age_cat <- predict(model_age_cat, newdata = filtered_data)
+
+# Evaluate accuracy
+accuracy <- sqrt(mean((filtered_data$fee - predictions_age_cat)^2))
+print(paste("Root Mean Squared Error (RMSE):", round(accuracy, 2)))
+
+```
+
+
+```{r}
+# Check for missing values
+any(is.na(filtered_data$fee))
+any(is.na(predictions_age_cat))
+
+```
+
+
+
+
+```{r}
+# Check unique values and missing values in age_category
+table(filtered_data$age_category, useNA = "always")
+
+```
+
+
+```{r}
+# Remove rows with missing age_category
+filtered_data <- na.omit(filtered_data, cols = "age_category")
+
+```
+
+
+```{r}
+# Predict transfer fees
+filtered_data$predictions_age_cat <- predict(model_age_cat, newdata = filtered_data)
+
+# Evaluate accuracy
+accuracy <- sqrt(mean((filtered_data$fee - filtered_data$predictions_age_cat)^2))
+print(paste("Root Mean Squared Error (RMSE):", round(accuracy, 2)))
+
+```
+
+
+
+ANALYSIS USING PREDICTED VALUES
+
+Positional Analysis using position_category:
+```{r}
+# Create a summary table for average predicted transfer fees by position category
+position_category_summary <- aggregate(predictions_age_cat ~ position_category, data = filtered_data, FUN = mean)
+
+
+```
+
+
+Comparative Analysis for Position Categories:
+```{r}
+library(ggplot2)
+ggplot(filtered_data, aes(x = position_category, y = predictions_age_cat, fill = position_category)) +
+  geom_boxplot() +
+  labs(title = "Comparison of Predicted Transfer Fees by Position Category",
+       x = "Position Category",
+       y = "Predicted Transfer Fee",
+       fill = "Position Category")
+
+
+```
+
+
+Positional Trends Over Time by Category:
+```{r}
+ggplot(filtered_data, aes(x = season, y = predictions_age_cat, color = position_category)) +
+  geom_line() +
+  labs(title = "Position Category Trends in Predicted Transfer Fees Over Time",
+       x = "Season",
+       y = "Predicted Transfer Fee",
+       color = "Position Category")
+
+```
+
+
+
+Positional Influence in Different Leagues by Category:
+```{r}
+ggplot(filtered_data, aes(x = position_category, y = predictions_age_cat, color = league)) +
+  geom_point() +
+  facet_wrap(~league) +
+  labs(title = "Impact of Position Category on Predicted Transfer Fees by League",
+       x = "Position Category",
+       y = "Predicted Transfer Fee",
+       color = "League")
+
+```
+
+
+
+Top Value Position Categories:
+```{r}
+# Identify top position categories by average predicted transfer fees
+top_position_categories <- position_category_summary[order(position_category_summary$predictions, decreasing = TRUE), ]
+
+top_position_categories
+```
+
+
+
+
+
+
+Club Analysis using Club:
+```{r}
+# Create a summary table for average predicted transfer fees by club
+club_summary <- aggregate(predictions_age_cat ~ club, data = filtered_data, FUN = mean)
+
+```
+
+
+Top Value Clubs: which football clubs, on average, tend to have higher predicted transfer fees:
+```{r}
+# Identify top clubs by average predicted transfer fees
+top_clubs <- club_summary[order(club_summary$predictions, decreasing = TRUE), ]
+top_clubs
+
+```
+
+
+
+
+Nationality Analysis using Nationality:
+```{r}
+# Create a summary table for average predicted transfer fees by nationality
+nationality_summary <- aggregate(predictions_age_cat ~ nationality, data = filtered_data, FUN = mean)
+
+```
+
+
+
+```{r}
+library(ggplot2)
+
+# Filter the top 10 nationalities
+top_nationalities <- nationality_summary %>%
+  top_n(10, wt = predictions_age_cat)
+
+# Bar chart for the top 10 nationalities
+ggplot(top_nationalities, aes(x = reorder(nationality, predictions_age_cat), y = predictions_age_cat)) +
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Top 10 Nationalities - Predicted Transfer Fees",
+       x = "Nationality",
+       y = "Predicted Transfer Fee")
+
+
+
+# World map 
+
+# Create a world map
+world_map <- map_data("world")
+
+library(maps)
+ggplot(filtered_data, aes(map_id = nationality)) +
+  geom_map(aes(fill = predictions_age_cat), map = world_map) +
+  expand_limits(x = world_map$long, y = world_map$lat) +
+  theme_void() +
+  labs(title = "Predicted Transfer Fees by Nationality on World Map",
+       fill = "Predicted Transfer Fee")
+
+```
+
+
+
+```{r}
+# Identify the top nationalities by average predicted transfer fees
+top_nationalities <- head(nationality_summary[order(-nationality_summary$predictions), ], 10)
+
+# Print the top nationalities
+print(top_nationalities)
+
+```
+
+
+
+
+
+
+#############################################################
+
+Quantifying Difference Between Leagues Over Time
+```{r}
+# Linear regression model with league, season, and league:season interaction
+model3 <- lm(fee ~ market_value + short_pos + league * season, data = filtered_data)
+
+# Visualize the league differences over time
+ggplot(filtered_data, aes(x = season, y = fee, color = league)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue", formula = y ~ x) +
+  labs(title = "Difference in Transfer Fees Between Leagues Over Time",
+       x = "Season",
+       y = "Transfer Fee",
+       color = "League") +
+  facet_grid(league ~ .)
+
+
+```
+
+
+
+Adding Interaction Terms
+```{r}
+# Model with interaction terms
+model_interaction <- lm(fee ~ market_value * short_pos * league * season * as.factor(age_category), data = filtered_data)
+
+# Visualization
+ggplot(filtered_data, aes(x = market_value, y = fee, color = league)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue", formula = y ~ x) +  
+  labs(title = "Model with Interaction Terms",
+       x = "Market Value",
+       y = "Transfer Fee",
+       color = "League") +
+  facet_grid(league ~ .)
+
+
+```
+
+
+
+
+Interaction Model - league:season interaction and log-transformed variables
+```{r}
+# Log-transform fee and market value
+filtered_data$log_fee <- log(filtered_data$fee)
+filtered_data$log_market_value <- log(filtered_data$market_value)
+
+# Model with league:season interaction and log-transformed variables
+interaction_model <- lm(log_fee ~ log_market_value + short_pos + league * season, data = filtered_data)
+
+# Visualization
+ggplot(filtered_data, aes(x = log_market_value, y = log_fee, color = league)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue", formula = y ~ x) +
+  labs(title = "Relationship between Log-transformed Market Value and Log-transformed Transfer Fee",
+       x = "Log-transformed Market Value",
+       y = "Log-transformed Transfer Fee",
+       color = "League") +
+  facet_grid(league ~ .)
+
+
+
+```
+
+
+
+
+```{r}
+
+# Check model summary
+summary(interaction_model)
+
+# Check variance inflation factor (VIF) for multicollinearity
+library(car)
+vif(interaction_model)
+
+# Add predictions and actual values to the dataset
+filtered_data$predictions <- exp(predict(interaction_model))
+filtered_data$actual_values <- filtered_data$fee
+
+# Visualize predictions vs. actual values
+ggplot(filtered_data, aes(x = actual_values, y = predictions, color = league)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "red") +
+  labs(title = "Predictions vs. Actual Transfer Fees",
+       x = "Actual Transfer Fee",
+       y = "Predicted Transfer Fee",
+       color = "League")
+
+# Check residuals
+residuals <- residuals(interaction_model)
+
+# Visualize residuals
+ggplot(filtered_data, aes(x = log_market_value, y = residuals, color = league)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Residuals vs. Log-transformed Market Value",
+       x = "Log-transformed Market Value",
+       y = "Residuals",
+       color = "League") +
+  facet_grid(league ~ .)
+
+
+
+```
+
+
+```{r}
+# Evaluate model performance
+library(Metrics)
+rmse_value <- rmse(filtered_data$actual_values, filtered_data$predictions)
+cat("Root Mean Squared Error (RMSE):", rmse_value, "\n")
+
+
+
+```
+
+
+
+
+
+
+
+AICs
+```{r}
+model <- lm(fee ~ market_value + league, data = filtered_data)
+model1 <- lm(fee ~ market_value + short_pos + league + season, data = filtered_data)
+model2 <- lm(fee ~ market_value + short_pos, data = filtered_data)
+model3 <- lm(fee ~ market_value + short_pos + league * season, data = filtered_data)
+model_age_cat <- lm(fee ~ market_value + short_pos + league + season + as.factor(age_category), data = filtered_data)
+model_interaction <- lm(fee ~ market_value * short_pos * league * season * as.factor(age_category), data = filtered_data)
+interaction_model <- lm(log_fee ~ log_market_value + short_pos + league * season, data = filtered_data)
+
+
+
+
+# AIC values
+AIC(model, model1, model2, model3, model_age_cat, model_interaction, interaction_model)
+
+```
+
+```{r}
+correlation_coefficient <- cor(filtered_data$market_value, filtered_data$season)
+
+# Print the correlation coefficient
+cat("Correlation Coefficient:", correlation_coefficient, "\n")
+#model 1 is the lowest
+# if i were to suspect interaction it would be between position and season
+model1 <- lm(fee ~ market_value + position_category + league + season, data = filtered_data)
+lm_all <- lm(fee ~ market_value + position_category + league + season + age, data = filtered_data)
+lm_age_val <- lm(fee ~ market_value*age + position_category + league + season, data = filtered_data)
+lm_age_val2 <- lm(fee ~ market_value*age + position_category + league*season, data = filtered_data)
+
+AIC(model1, lm_all, lm_age_val,lm_age_val2)
+
+
+```
+```{r}
+
+
+ggplot(filtered_data, aes(x = market_value, y = fee, color = position_category)) +
+  geom_point() +
+  geom_abline(intercept = coef(lm_all)[1], slope = coef(lm_all)[2], color = "purple") +
+  labs(title = "Relationship between Market Value and Transfer Fee (All League)",
+       x = "Market Value",
+       y = "Transfer Fee",
+       color = "League") + 
+  facet_grid(league ~ .)
+```
+
+
+```{r}
+lm_age_val <- lm(fee ~ market_value*age + position_category + league + season, data = filtered_data)
+
+
+ggplot(filtered_data, aes(x = market_value, y = fee, color = position_category)) +
+  geom_point() +
+  geom_abline(intercept = coef(lm_age_val)[1], slope = coef(lm_age_val)[2], color = "purple") +
+  labs(title = "Relationship between Market Value and Transfer Fee (All League)",
+       x = "Market Value",
+       y = "Transfer Fee",
+       color = "League") + 
+  facet_grid(league ~ .)
+
+```
+
+```{r}
+# Create a GAM model with a nonlinear term in age and market_value
+gam_model <- gam(fee ~ s(market_value) + s(age) + position_category + league + s(season),
+                 data = filtered_data)
+
+
+# Plot the GAM model
+plot(gam_model, select = 2)  # Select the age smooth term for plotting
+
+# Summary of the GAM model
+summary(gam_model)
+
+filtered_data$predicted_fee <- predict(gam_model, newdata = filtered_data)
+
+# Plot the observed data and the fitted values
+ggplot(filtered_data, aes(x = market_value, y = fee, color = league)) +
+  geom_point(alpha = 1) +  # Scatter plot of observed data
+  geom_line(aes(y = predicted_fee), color = "purple", size = 1) +  # Fitted values from the GAM model
+  labs(title = "Observed Data vs. Fitted Values (GAM Model)",
+       x = "Market Value",
+       y = "Transfer Fee")
+
+```
+
+```{r}
+
+
+```
+
+```{r}
+
+
+```
+
+
+
+```{r}
+
+
+  
+```
