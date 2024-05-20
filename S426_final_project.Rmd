@@ -1,0 +1,169 @@
+---
+title: "S426_final_project"
+author: "Morgan Fissel"
+date: "2023-11-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(NHANES)
+library(ggplot2)
+library(brms)
+library(mcmc)
+library(bayesplot)
+library(splines2)
+```
+
+How do health indicators vary over time within different age groups in the U.S. population based on NHANES data? How do variables like income, education, marijuana, alcohol, and sleep relate to age?
+
+```{r}
+nhanes = NHANES
+vars = c('ID','Age','AgeDecade','HHIncome','HHIncomeMid','Poverty','Education','Marijuana','AgeFirstMarij','RegularMarij','AgeRegMarij','AlcoholDay','AlcoholYear','SleepHrsNight','SleepTrouble')
+print(vars)
+nhanes = nhanes[,vars]
+nhanes = na.omit(nhanes)
+nhanes$EducationNumeric <- as.numeric(factor(nhanes$Education, levels = c('8th grade', '9 - 11th Grade', 'High School', 'Some College', 'College Grad')))
+nhanes$SleepTroubleNumeric <- as.numeric(factor(nhanes$SleepTrouble, levels = c('Yes', 'No')))
+nhanes$MarijuanaNumeric <- as.numeric(factor(nhanes$Marijuana, levels = c('Yes', 'No')))
+nhanes$RegularMarijNumeric <- as.numeric(factor(nhanes$RegularMarij, levels = c('Yes', 'No')))
+nhanes$SleepTroubleNumeric = as.factor(nhanes$SleepTroubleNumeric)
+nhanes$MarijuanaNumeric = as.factor(nhanes$MarijuanaNumeric)
+nhanes$RegularMarijNumeric = as.factor(nhanes$RegularMarijNumeric)
+
+
+```
+```{r}
+# # Example using brms with a grouping variable
+# formula <- brm(
+#   Age ~ 1 + (1|Education),  # Adjust the formula based on your grouping variable
+#   data = nhanes,
+#   family = gaussian(),
+#   prior = c(prior(normal(0, 10), class = Intercept),
+#             prior(student_t(3, 0, 10), class = sigma))
+# )
+# summary(formula)
+```
+
+
+```{r}
+hist(nhanes$Age)
+hist(nhanes$EducationNumeric)
+hist(nhanes$AgeFirstMarij, breaks = 46)
+hist(nhanes$AgeRegMarij, breaks = 52)
+hist(nhanes$SleepHrsNight, breaks = 12)
+hist(nhanes$SleepTroubleNumeric, breaks = 4)
+```
+
+
+```{r}
+formula <- brm(
+  Age ~ (AgeFirstMarij) * (AgeRegMarij) + (1|SleepHrsNight),
+  data = nhanes,
+  family = gaussian(),
+  prior = c(
+    prior(normal(0, 5), class = Intercept),
+    prior(student_t(3, 0, 5), class = sigma)
+  ),
+  iter = 2000,
+  control = list(adapt_delta = 0.95)
+)
+
+
+pairs(formula)
+pp_check(formula)
+```
+
+```{r}
+formula <- brm(
+  Age ~ AgeFirstMarij + AgeRegMarij + (1|SleepHrsNight),
+  data = nhanes,
+  family = gaussian(),
+  prior = c(
+    prior(cauchy(0, 5), class = Intercept),  # Cauchy prior for the intercept
+    prior(cauchy(0, 5), class = sigma)  # Cauchy prior for sigma
+  ),
+  iter = 2000,
+  control = list(adapt_delta = 0.99)
+)
+
+pp_check(formula)
+```
+
+Let's try regression
+```{r}
+# # Regular regression (Zellner's g-prior) using nhanes data
+# 
+# # Constants
+# g <- nrow(nhanes)
+# nu0 <- 1
+# s20 <- summary(lm(SleepTroubleNumeric ~ Marijuana + RegularMarij, data = nhanes))$sigma^2
+# 
+# # Replications
+# repl <- 1000
+# my_trace <- list(s2 = numeric(repl), beta = array(NA, dim = c(repl, 3)))
+# 
+# # Data
+# y <- nhanes$SleepTrouble
+# x <- nhanes[, c("Marijuana", "RegularMarij")]
+# n <- length(y)
+# XtX_inv <- solve(t(x) %*% x)
+# 
+# # Fit a linear regression model to obtain SSRg
+# tmp_lm <- lm(y ~ x[, -1])
+# SSRg <- sum((y - predict(tmp_lm))^2)
+# 
+# # Main loop for replication
+# for (i in 1:repl) {
+#   # Sample from the inverse gamma distribution for the error variance
+#   s2 <- 1 / rgamma(n = 1, shape = (nu0 + n) / 2, rate = (nu0 * s20 + SSRg) / 2)
+# 
+#   # Sample from the multivariate normal distribution for the coefficients
+#   beta <- mvrnorm(n = 1, mu = g / (g + 1) * coef(tmp_lm), Sigma = g / (g + 1) * s2 * XtX_inv)
+# 
+#   # Store the samples in the trace
+#   my_trace$s2[i] <- s2
+#   my_trace$beta[i, ] <- beta
+# }
+# 
+# # Display posterior means of coefficients
+# apply(my_trace$beta, MARGIN = 2, FUN = mean)
+# 
+# # Create a pairs plot for the posterior samples of coefficients
+# pairs(my_trace$beta)
+
+```
+No luck with this not sure what is wrong with the factors. 
+
+Using binary variables beta binary model
+```{r}
+# formula_logistic_sleep_trouble <- brm(
+#   SleepTrouble ~ Marijuana + RegularMarij,
+#   data = nhanes,
+#   family = bernoulli(link = "logit"),
+#   prior = c(
+#     prior(cauchy(0, 5), class = Intercept),  # Cauchy prior for the intercept
+#     prior(cauchy(0, 5), class = sigma)  # Cauchy prior for sigma
+#   ),
+#   iter = 100,
+#   control = list(adapt_delta = 0.99)
+# )
+# pp_check(formula_logistic_sleep_trouble)
+```
+Got more of the same issue on this one. 
+
+Poisson/Gamma model too potentially
+```{r}
+# formula_gamma_log <- brm(
+#   Age ~ AgeFirstMarij * AgeRegMarij + (1|SleepHrsNight),
+#   data = nhanes,
+#   family = Gamma(link = "log"),
+#   prior = get_prior(Age ~ AgeFirstMarij * AgeRegMarij + (1|SleepHrsNight), data = nhanes, family = Gamma()),
+#   iter = 100,
+#   control = list(adapt_delta = 0.99)
+# )
+# pp_check(formula_gamma_log)
+```
+
+
+
